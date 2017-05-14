@@ -1,0 +1,19 @@
+DEPENDENCIES
+============
+
+* zlib (already pre-installed on most Unix systems)
+* OpenCV 2.x (x >= 4)
+* Intel MKL (Highly optimized Blas and Lapack implementation for Intel)
+  Want to use another Blas/Lapack implementation?
+  - install whatever implementation you want to use on your machine
+  - change the respective lines in definitions.make
+  - include the headers in Math/Blas.hh and Math/Lapack.hh
+
+COMPILATION
+===========
+
+* adjust paths in definitions.make:
+  - OPENCVROOT path to your OpenCV includes and libraries
+  - MKLROOT    path to your Intel MKL includes and libraries
+               (or to another Blas/Lapack implementation you use)
+* call "make" in the src directory
