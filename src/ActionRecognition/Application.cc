@@ -12,13 +12,14 @@
 #include "Math/Random.hh"
 #include "KMeans.hh"
 #include "Svm.hh"
+#include "Dense.hh"
 
 using namespace ActionRecognition;
 
 APPLICATION(ActionRecognition::Application)
 
 const Core::ParameterEnum Application::paramAction_("action",
-		"example, stip, svm-train, svm-classify", // list of possible actions
+        "example, stip, svm-train, svm-classify,dense", // list of possible actions
 		"example"); // the default
 
 void Application::main() {
@@ -48,6 +49,12 @@ void Application::main() {
 		svm.classify();
 	}
 	break;
+    case dense:
+    {
+        Dense dense;
+        dense.run();
+    }
+    break;
 	default:
 		Core::Error::msg("No action given.") << Core::Error::abort;
 	}

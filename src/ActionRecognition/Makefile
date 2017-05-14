@@ -7,7 +7,8 @@ OBJECTS = Example.o \
           Gmm.o \
           Stip.o \
           FeatureQuantizer.o \
-          Svm.o
+          Svm.o \
+	Dense.o
 
 OBJ = $(patsubst %, objects/%, $(OBJECTS))
 

@@ -17,7 +17,7 @@ class Application: public Core::Application
 {
 private:
 	static const Core::ParameterEnum paramAction_;
-	enum Actions { example, stip, svmTrain, svmClassify };
+    enum Actions { example, stip, svmTrain, svmClassify,dense };
 public:
 	virtual ~Application() {}
 	virtual void main();
