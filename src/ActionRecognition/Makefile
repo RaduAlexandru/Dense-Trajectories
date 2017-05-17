@@ -8,7 +8,8 @@ OBJECTS = Example.o \
           Stip.o \
           FeatureQuantizer.o \
           Svm.o \
-	Dense.o
+					Dense.o \
+					Track.o
 
 OBJ = $(patsubst %, objects/%, $(OBJECTS))
 
@@ -22,7 +23,7 @@ prepare:
 	@mkdir -p objects
 
 $(OBJ): objects/%.o : %.cc %.hh
-	$(CC) $(COPTS) -c $< -lcppunit -o $@
+	$(CC) -std=c++11 $(COPTS) -c $< -lcppunit -o $@
 
 libActionDetector.a:
 	$(MAKELIB) $(ARFLAGS) $@ $(OBJ)
