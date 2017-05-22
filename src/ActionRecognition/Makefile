@@ -9,7 +9,8 @@ OBJECTS = Example.o \
           FeatureQuantizer.o \
           Svm.o \
 					Dense.o \
-					Track.o
+					Track.o \
+					Histogram.o
 
 OBJ = $(patsubst %, objects/%, $(OBJECTS))
 

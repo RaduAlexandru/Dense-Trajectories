@@ -9,7 +9,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
+
 #include "Track.hh"
+#include "ArrayFastest.hh"
+#include "Histogram.hh"
 #include <fstream>
 
 namespace ActionRecognition {
@@ -46,6 +49,11 @@ private:
     void denseSample(cv::Mat frame, std::vector<cv::Point>& points,  int stepSize);
     void filterTracks(std::vector<Track>& tracks);
     void writeTracksToFile(std::string trackFile, std::vector<Track> tracks);
+    void derivatives(const Video& in, Video& Lx, Video& Ly, Video& Lt);
+    void compute_grad_orientations_magnitudes(Video Lx, Video Ly, Video& grad_mags, Video& grad_orientations );
+    void compute_mbh(Video flow, Video& mbh_x_mag, Video& mbh_x_orientation, Video& mbh_y_mag, Video& mbh_y_orientation);
+    void computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx, Video Ly, Video flow, Video flowAngle, Video flowMag);
+    int write_descriptors_to_file(std::vector<Track> tracks, std::ofstream& file);
 
 public:
     Dense();
