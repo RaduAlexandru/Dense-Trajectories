@@ -12,10 +12,10 @@ using namespace ActionRecognition;
 
 
 const Core::ParameterInt Gmm::paramNumberOfGaussians_("number-of-gaussians", 64, "gmm");
-const Core::ParameterInt Gmm::paramNumberOfIterations_("number-of-iterations", 100, "gmm");
-const Core::ParameterString Gmm::paramWeightsFile_("model-weights-file", "", "gmm");
-const Core::ParameterString Gmm::paramMeanFile_("model-mean-file", "", "gmm");
-const Core::ParameterString Gmm::paramSigmaFile_("model-sigma-file", "", "gmm");
+const Core::ParameterInt Gmm::paramNumberOfIterations_("number-of-iterations", 1, "gmm");
+const Core::ParameterString Gmm::paramWeightsFile_("model-weights-file", "gmm_weights.txt", "gmm");
+const Core::ParameterString Gmm::paramMeanFile_("model-mean-file", "gmm_mean.txt", "gmm");
+const Core::ParameterString Gmm::paramSigmaFile_("model-sigma-file", "gmm_sigma.txt", "gmm");
 
 Gmm::Gmm() :
 		nGaussians_(Core::Configuration::config(paramNumberOfGaussians_)),
@@ -49,7 +49,7 @@ void Gmm::initializeMeans(const Math::Matrix<Float>& trainingData) {
 
 void Gmm::initializeVariance(const Math::Matrix<Float>& trainingData) {
 	sigmas_.resize(trainingData.nRows(), nGaussians_);
-	sigmas_.fill(1);
+	sigmas_.fill(1.0f);
 }
 
 void Gmm::initializeWeights() {
@@ -72,6 +72,12 @@ Float Gmm::calculateDeterminenet(const Math::Vector<Float>& sigma) {
 	return result;
 }
 
+void Gmm::calculateInverse(const Math::Vector<Float>& diagonalMat, Math::Vector<Float>& result) {
+	for (u32 i=0; i<diagonalMat.nRows(); i++) {
+		result.at(i) = 1.0f / diagonalMat.at(i);
+	}
+}
+
 void Gmm::calculateProbabilitiesGivenParams(const Math::Matrix<Float>& trainingData, Math::Matrix<Float>& result) {
 
 	for ( u32 i=0; i<nGaussians_; i++) {
@@ -80,31 +86,50 @@ void Gmm::calculateProbabilitiesGivenParams(const Math::Matrix<Float>& trainingD
 		sigmas_.getColumn(i, sigma);
 		Math::Vector<Float> mean(trainingData.nRows());
 		means_.getColumn(i, mean);
-
+		Math::Vector<Float> sigmaInv(sigmas_.nRows());
+		calculateInverse(sigma, sigmaInv);
 		for (u32 j=0; j<trainingData.nColumns(); j++) {
 			Math::Vector<Float> feature(trainingData.nRows());
-			trainingData.getColumn(i, feature);
+			trainingData.getColumn(j, feature);
 
 			feature.add(mean, -1.0f);
-			Math::Vector<Float> temp;
+
+			Math::Vector<Float> temp(feature.nRows());
 			temp.copy(feature);
 
-			feature.elementwiseMultiplication(sigma);
-			result.at(j, i) =  (1.0f/(pow((2 * M_PI), trainingData.nRows() / 2) * pow(abs(calculateDeterminenet(sigma)), 0.5))) * exp(feature.dot(temp) * (-1.0f/2.0f));
+			feature.elementwiseMultiplication(sigmaInv);
+			result.at(j, i) =  (1.0f/(pow((2 * M_PI), trainingData.nRows() / 2.0f) * pow(abs(calculateDeterminenet(sigma)), 0.5))) * exp(feature.dot(temp) * (-1.0f/2.0f));
 
+			// std::cout << "result " << result.at(j, i) << '\n';
+
+			// for (size_t i = 0; i < 64; i++) {
+			// 	std::cout << "sigma is " << sigmaInv.at(i) << '\n';
+			// }
+
+			// std::cout << "right part is " << exp(feature.dot(temp) * (-1.0f/2.0f)) << '\n';
+			// std::cout << "exponent is " << (trainingData.nRows() / 2.0f) << '\n';
+			// std::cout << " stuff is " <<  std::pow((2 * M_PI), trainingData.nRows() / 2.0f) << '\n';
+			// std::cout << "normalization is " << (1.0f/(pow((2 * M_PI), trainingData.nRows() / 2.0f) * pow(std::fabs(calculateDeterminenet(sigma)), 0.5)))  << '\n';
 		}
 	}
 }
 
 void Gmm::calculateLambdas(const Math::Matrix<Float>& probabilities) {
+	Math::Vector<Float> norm(lambdas_.nRows());
+	for (u32 i=0; i<lambdas_.nRows(); i++) {
+		norm.at(i) = 0.0f;
+		for (u32 j=0; j< lambdas_.nColumns(); j++) {
+			norm.at(i) += weights_.at(j) * probabilities.at(i, j);
+		}
+		if(norm.at(i) == 0.0) {
+			std::cout<<i<<"::("<<probabilities.at(i, 0)<<","<<probabilities.at(i, 1)<<","<<probabilities.at(i, 2)<<")"<<std::endl;
+		}
+	}
+
 	for (u32 i=0; i<lambdas_.nRows(); i++) {
 		for (u32 j=0; j<lambdas_.nColumns(); j++) {
 			lambdas_.at(i, j) = weights_.at(j) * probabilities.at(i, j);
-			Float sum = 0.0f;
-			for (u32 k=0; k<nGaussians_; k++) {
-				sum += weights_.at(k) * probabilities.at(i, k);
-			}
-			lambdas_.at(i, j) /= sum;
+			lambdas_.at(i, j) /= norm.at(i);
 		}
 	}
 }
@@ -171,14 +196,15 @@ void Gmm::maximizationStep(const Math::Matrix<Float>& trainingData) {
 		newSigma.setColumn(i, sum);
 	}
 
-	means_ = newMean;
-	sigmas_ = newSigma;
+	means_.copy(newMean);
+	sigmas_.copy(newSigma);
 }
 
 void Gmm::train(const Math::Matrix<Float>& trainingData) {
 
 	initialize(trainingData);
 	for (u32 i =0; i< nIterations_; i++) {
+		std::cout<<"iter:"<<i<<std::endl;
 		expectationStep(trainingData);
 		maximizationStep(trainingData);
 	}
@@ -189,6 +215,7 @@ void Gmm::train(const Math::Matrix<Float>& trainingData) {
 void Gmm::predict(const Math::Matrix<Float>& data, Math::Matrix<Float>& result) {
 
 	lambdas_.resize(data.nColumns(), nGaussians_);
+	result.resize(data.nColumns(), nGaussians_);
 
 	calculateProbabilitiesGivenParams(data, result);
 	calculateLambdas(result);
@@ -226,10 +253,10 @@ void Gmm::load() {
 		Core::Error::msg("gmm.model-mean-file must not be empty.") << Core::Error::abort;
 	}
 
-	means_.read(modelWeightsFile_);
+	means_.read(modelMeanFile_);
 
 	if (modelSigmaFile_.empty()) {
 		Core::Error::msg("gmm.model-sigma-file must not be empty.") << Core::Error::abort;
 	}
-	sigmas_.read(modelWeightsFile_);
+	sigmas_.read(modelSigmaFile_);
 }

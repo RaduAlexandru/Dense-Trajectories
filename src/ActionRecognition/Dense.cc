@@ -156,7 +156,6 @@ void Dense::track(std::vector<Track>& tracks, Video& flow){
 
 }
 
-
 void Dense::extractTrajectories(Video& video, Video& flow, std::vector<Track> & tracks){
 
 
@@ -202,7 +201,6 @@ void Dense::extractTrajectories(Video& video, Video& flow, std::vector<Track> & 
 
 }
 
-
 void Dense::denseSample(cv::Mat frame, std::vector<cv::Point>& points,  int stepSize){
 
   cv::Mat minEigenvalMat;
@@ -241,7 +239,6 @@ void Dense::denseSample(cv::Mat frame, std::vector<cv::Point>& points,  int step
 
 }
 
-
 void Dense::filterTracks(std::vector<Track>& tracks){
 
   //remove the ones that don't have a length of 15
@@ -276,7 +273,6 @@ void Dense::filterTracks(std::vector<Track>& tracks){
 
 }
 
-
 void Dense::writeTracksToFile(std::string trackFile, std::vector<Track> tracks){
 
   std::ofstream myfile;
@@ -295,7 +291,6 @@ void Dense::writeTracksToFile(std::string trackFile, std::vector<Track> tracks){
   myfile.close();
 
 }
-
 
 void Dense::derivatives(const Video& in, Video& Lx, Video& Ly, Video& Lt) {
 	Lx.resize(in.size() - 1);
@@ -326,7 +321,6 @@ void Dense::compute_grad_orientations_magnitudes(Video Lx, Video Ly, Video& grad
 
 }
 
-
 void Dense::compute_mbh(Video flow, Video& mbh_x_mag, Video& mbh_x_orientation, Video& mbh_y_mag, Video& mbh_y_orientation){
 
   mbh_x_mag.resize(flow.size());
@@ -356,7 +350,6 @@ void Dense::compute_mbh(Video flow, Video& mbh_x_mag, Video& mbh_x_orientation, 
 
 
 }
-
 
 void Dense::computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx, Video Ly, Video flow, Video flowAngle, Video flowMag ){
 
@@ -434,30 +427,6 @@ void Dense::computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx
           int cell_idx_t= t/cell_size_t;
           // std::cout << "cell indexing i" << cell_idx_x << " " << cell_idx_y << " " << cell_idx_t << '\n';
 
-          // if (cell_idx_x>=cell_per_vol_x){
-          //   std::cout << "ERROR: cell_idx_x out of bounds" << '\n';
-          //   std::cout << "cell_idx_x: " << cell_idx_x << '\n';
-          //   std::cout << "point x is " << tracks[i].getPoint(t).x << '\n';
-          //   std::cout << "x is " << x << '\n';
-          //   std::cout << "vol_x_size is" << vol_x_size << '\n';
-          //   std::cout << "cap of x is " << std::min(video[0].cols,tracks[i].getPoint(t).x+16) << '\n';
-          //   std::cout << "vidoe cols is " << video[0].cols << '\n';
-          //   std::cout << "track x +16 is "  << tracks[i].getPoint(t).x+16 << '\n';
-          // }
-          // if (cell_idx_y>=cell_per_vol_y){
-          //   std::cout << "ERROR: cell_idx_y out of bounds" << '\n';
-          //   std::cout << "cell_idx_y: " << cell_idx_y << '\n';
-          //   std::cout << "point x is " << tracks[i].getPoint(t).y << '\n';
-          //   std::cout << "y is " << y << '\n';
-          //   std::cout << "vol_y_size is" << vol_y_size << '\n';
-          // }
-          // if (cell_idx_t>=cell_per_vol_t){
-          //   std::cout << "ERROR: cell_idx_t out of bounds" << '\n';
-          //   std::cout << "cell_idx_t: " << cell_idx_t << '\n';
-          //   std::cout << "point t is " << tracks[i].getLength() << '\n';
-          //   std::cout << "t is " << t << '\n';
-          //   std::cout << "vol_t_size is" << vol_t_size << '\n';
-          // }
 
 
           //we need it because the idx in time needs to be the time of the point + the time when the track started
@@ -582,13 +551,657 @@ int Dense::write_descriptors_to_file(std::vector<Track> tracks, std::ofstream& f
 
   return descriptor_written;
 
+}
+
+void Dense::read_features_from_file_Mat(std::string descriptor_file_path, cv::Mat& features, std::vector<int>& nr_features_per_video){
+
+
+  std::ifstream desc_file( descriptor_file_path );
+
+
+  int nr_vectors=0;
+  int vector_dimensions=0;
+  int nr_videos=0;
+  std::string line;
+  getline( desc_file, line );
+  std::istringstream buf(line);
+  std::istream_iterator<std::string> beg(buf), end;
+  std::vector<std::string> tokens(beg, end); // done!
+
+  nr_vectors=atoi(tokens[0].data());
+  vector_dimensions=atoi(tokens[1].data());
+  nr_videos=atoi(tokens[2].data());
+
+  // std::cout << "nr_vectors" << nr_vectors << '\n';
+  // std::cout << "vector_dimensions" << vector_dimensions << '\n';
+  // std::cout << "nr_videos" << nr_videos << '\n';
+
+  features=cv::Mat(vector_dimensions,nr_vectors,CV_32FC1);
+  MemoryAccessor features_acc (features.rows, features.cols, (Float*) features.data);
+  // features.resize(vector_dimensions,nr_vectors);
+
+  int sample=0;
+  int features_current_video=0;
+  while( getline( desc_file, line ) ){
+
+    if (line=="#"){
+      std::cout << "read a video with nr of features"  << features_current_video<< '\n';
+      nr_features_per_video.push_back(features_current_video);
+      features_current_video=0;
+      continue;
+    }
+
+
+
+    std::istringstream buf(line);
+    std::istream_iterator<std::string> beg(buf), end;
+    std::vector<std::string> tokens(beg, end); // done!
+
+    for (size_t i = 0; i < tokens.size(); i++) {
+      // features.at(i,sample)=atof(tokens[i].data());
+      // features_acc(i,sample)=atof(tokens[i].data());
+      features.at<float>(i,sample)=atof(tokens[i].data());
+
+    }
+
+    sample++;
+    features_current_video++;
+  }
+  desc_file.close();
 
 }
+
+void Dense::read_features_per_video_from_file_Mat(std::string descriptor_file_path, std::vector<cv::Mat >& features_per_video, int max_nr_videos){
+
+  std::ifstream desc_file( descriptor_file_path );
+
+  int nr_vectors=0;
+  int vector_dimensions=0;
+  int nr_videos=0;
+  std::string line;
+  getline( desc_file, line );
+  std::istringstream buf(line);
+  std::istream_iterator<std::string> beg(buf), end;
+  std::vector<std::string> tokens(beg, end); // done!
+
+  nr_vectors=atoi(tokens[0].data());
+  vector_dimensions=atoi(tokens[1].data());
+  nr_videos=atoi(tokens[2].data());
+
+  std::cout << "nr_vectors" << nr_vectors << '\n';
+  std::cout << "vector_dimensions" << vector_dimensions << '\n';
+  std::cout << "nr_videos" << nr_videos << '\n';
+
+  features_per_video.resize(nr_videos);
+  for (size_t i = 0; i < nr_videos; i++) {
+    features_per_video[i]=cv::Mat(1,1,CV_32FC1);
+  }
+
+
+  std::vector<std::vector<float>>features_video;
+
+  // int nr_features_in_video=0;
+  int video_nr=0;
+  while( getline( desc_file, line ) ){
+
+    if (line=="#"){
+      if (!features_video.empty()){
+        // features_per_video[video_nr].resize(vector_dimensions,features_video.size());
+        cv::resize(features_per_video[video_nr],features_per_video[video_nr], cv::Size(features_video.size(), vector_dimensions ));
+        // cv::resize(features_per_video[video_nr],features_per_video[video_nr], size);
+
+
+        //get the features_video and put them into the features__video_vector of math::matrices
+        for (size_t i = 0; i < vector_dimensions; i++) {
+          for (size_t j = 0; j < features_video.size(); j++) {
+            // features_per_video[video_nr].at(i,j) = features_video[j][i];
+            features_per_video[video_nr].at<float>(i,j) = features_video[j][i];
+          }
+        }
+
+        features_video.clear();
+        video_nr++;
+      }
+    }
+
+    if (video_nr>max_nr_videos){
+      break;
+    }
+
+
+    std::istringstream buf(line);
+    std::istream_iterator<std::string> beg(buf), end;
+    std::vector<std::string> tokens(beg, end); // done!
+
+    std::vector<float> tmp;
+    for (size_t i = 0; i < tokens.size(); i++) {
+      tmp.push_back(atof(tokens[i].data()));
+    }
+    features_video.push_back(tmp);
+  }
+  desc_file.close();
+}
+
+void Dense::read_features_per_video_from_file_math(std::string descriptor_file_path, std::vector<Math::Matrix<Float> >& features_per_video, int max_nr_videos){
+  std::ifstream desc_file( descriptor_file_path );
+
+
+  int nr_vectors=0;
+  int vector_dimensions=0;
+  int nr_videos=0;
+  std::string line;
+  getline( desc_file, line );
+  std::istringstream buf(line);
+  std::istream_iterator<std::string> beg(buf), end;
+  std::vector<std::string> tokens(beg, end); // done!
+
+  nr_vectors=atoi(tokens[0].data());
+  vector_dimensions=atoi(tokens[1].data());
+  nr_videos=atoi(tokens[2].data());
+
+  std::cout << "nr_vectors" << nr_vectors << '\n';
+  std::cout << "vector_dimensions" << vector_dimensions << '\n';
+  std::cout << "nr_videos" << nr_videos << '\n';
+
+  features_per_video.resize(nr_videos);
+
+  std::vector<std::vector<float>>features_video;
+
+  // int nr_features_in_video=0;
+  int video_nr=0;
+  while( getline( desc_file, line ) ){
+
+    if (line=="#"){
+      if (!features_video.empty()){
+        features_per_video[video_nr].resize(vector_dimensions,features_video.size());
+
+        //get the features_video and put them into the features__video_vector of math::matrices
+        for (size_t i = 0; i < vector_dimensions; i++) {
+          for (size_t j = 0; j < features_video.size(); j++) {
+            features_per_video[video_nr].at(i,j) = features_video[j][i];
+          }
+        }
+
+        features_video.clear();
+        video_nr++;
+      }
+    }
+
+    if (video_nr>max_nr_videos){
+      break;
+    }
+
+
+    std::istringstream buf(line);
+    std::istream_iterator<std::string> beg(buf), end;
+    std::vector<std::string> tokens(beg, end); // done!
+
+    std::vector<float> tmp;
+    for (size_t i = 0; i < tokens.size(); i++) {
+      tmp.push_back(atof(tokens[i].data()));
+    }
+    features_video.push_back(tmp);
+  }
+  desc_file.close();
+}
+
+void Dense::read_features_from_file_math(std::string descriptor_file_path, Math::Matrix<Float>& features){
+
+
+  std::ifstream desc_file( descriptor_file_path );
+
+
+  int nr_vectors=0;
+  int vector_dimensions=0;
+  int nr_videos=0;
+  std::string line;
+  getline( desc_file, line );
+  std::istringstream buf(line);
+  std::istream_iterator<std::string> beg(buf), end;
+  std::vector<std::string> tokens(beg, end); // done!
+
+  nr_vectors=atoi(tokens[0].data());
+  vector_dimensions=atoi(tokens[1].data());
+  nr_videos=atoi(tokens[2].data());
+
+  // std::cout << "nr_vectors" << nr_vectors << '\n';
+  // std::cout << "vector_dimensions" << vector_dimensions << '\n';
+  // std::cout << "nr_videos" << nr_videos << '\n';
+
+  features.resize(vector_dimensions,nr_vectors);
+
+  int sample=0;
+  int features_current_video=0;
+  while( getline( desc_file, line ) ){
+
+    if (line=="#"){
+      std::cout << "read a video with nr of features"  << features_current_video<< '\n';
+      features_current_video=0;
+      continue;
+    }
+
+
+    std::istringstream buf(line);
+    std::istream_iterator<std::string> beg(buf), end;
+    std::vector<std::string> tokens(beg, end); // done!
+
+    for (size_t i = 0; i < tokens.size(); i++) {
+      features.at(i,sample)=atof(tokens[i].data());
+
+    }
+
+    sample++;
+    features_current_video++;
+  }
+  desc_file.close();
+
+}
+
+cv::PCA Dense::compressPCA(const cv::Mat& pcaset, int maxComponents, const cv::Mat& testset, cv::Mat& compressed) {
+    cv::PCA pca(pcaset, // pass the data
+            cv::Mat(), // we do not have a pre-computed mean vector,
+                   // so let the PCA engine to compute it
+            CV_PCA_DATA_AS_COL, // indicate that the vectors
+                                // are stored as matrix rows
+                                // (use CV_PCA_DATA_AS_COL if the vectors are
+                                // the matrix columns)
+            maxComponents // specify, how many principal components to retain
+            );
+    // if there is no test data, just return the computed basis, ready-to-use
+    // if( !testset.data )
+    //     return pca;
+    // CV_Assert( testset.cols == pcaset.cols );
+    compressed.create(maxComponents, pcaset.cols, pcaset.type());
+    // cv::Mat reconstructed;
+    for( int i = 0; i < pcaset.cols; i++ )
+    {
+        cv::Mat vec = pcaset.col(i), coeffs = compressed.col(i), reconstructed;
+        // compress the vector, the result will be stored
+        // in the i-th row of the output matrix
+        pca.project(vec, coeffs);
+        // and then reconstruct it
+        pca.backProject(coeffs, reconstructed);
+        // and measure the error
+        printf("%d. diff = %g\n", i, norm(vec, reconstructed, cv::NORM_L2));
+    }
+    return pca;
+}
+
+void Dense::write_nr_features_per_video_to_file(std::string nr_features_per_video_file_path, std::vector<int> nr_features_per_video){
+
+  std::ofstream file;
+  file.open (nr_features_per_video_file_path);
+
+  for (size_t i = 0; i < nr_features_per_video.size(); i++) {
+      file << nr_features_per_video[i] << std::endl;
+  }
+
+}
+
+void Dense::write_compressed_features_to_file(std::string desc_compressed_file_path, cv::Mat feat_compressed, std::vector<int> nr_features_per_video){
+
+  std::ofstream file;
+  file.open (desc_compressed_file_path);
+
+  int current_video=0;
+
+  int features_written=0;
+  for (size_t i = 0; i < feat_compressed.cols; i++) {
+
+      //write the column
+      for (size_t j = 0; j < feat_compressed.rows; j++) {
+        file << feat_compressed.at<float>(j,i) << " ";
+      }
+      file << std::endl;
+      // file << feat_compressed.col(i) << std::endl;
+      features_written++;
+
+      if (features_written==nr_features_per_video[current_video]){
+        current_video++;
+        features_written=0;
+        file << "#"<< std::endl;
+      }
+  }
+
+  file.seekp(0); //Move at start of file
+  file << feat_compressed.cols << " " << 64 << " " << nr_features_per_video.size() << std::endl;
+  file.close();
+
+}
+
+
+void Dense::computeFisherVectors(Math::Matrix<Float>& fisher_vectors, std::vector <Math::Matrix<Float> >&  features_per_video, const Math::Matrix<Float>& means, const Math::Vector<Float>& weights, const Math::Matrix<Float>& sigmas){
+
+  fisher_vectors.resize((2*64+1)*64, features_per_video.size() );
+
+  //make a matrix computing the u response of each features in the ideo under each gaussian,  u_k(x_t)
+  //rows will be the features, columns will be the gaussians
+  for (size_t vid_idx = 0; vid_idx < features_per_video.size(); vid_idx++) {
+    std::cout << "calculated fisher vector for video  = " << vid_idx << '\n';
+    Math::Matrix<Float> u_s (features_per_video[vid_idx].nColumns(), 64);
+
+    //loop through all of the features and through all of the gaussians and fill the matrix up
+    for (size_t x_idx = 0; x_idx < features_per_video[vid_idx].nColumns(); x_idx++) {
+      for (size_t k = 0; k < 64; k++) {
+        Math::Vector<Float> feature(64);
+        features_per_video[vid_idx].getColumn(x_idx, feature);
+        u_s.at(x_idx,k)=u(feature, means,sigmas, k);
+      }
+    }
+
+    //make a vector of the sum of the rows of the u_s matrix, we will need it for the normalization factor in the gammas
+    Math::Vector<Float> u_s_sum(features_per_video[vid_idx].nColumns());
+    for (size_t x_idx = 0; x_idx < features_per_video[vid_idx].nColumns(); x_idx++) {
+      Math::Vector<Float> u_row(64);
+      u_s.getRow(x_idx, u_row);
+      float res=0;
+      for (size_t k = 0; k < 64; k++) {
+        res+= weights.at(k)*u_row.at(k);
+      }
+      u_s_sum.at(x_idx)=res;
+
+    }
+
+
+
+    //Make a matrix of gammas containint all the gammas of the featurs in this video
+    Math::Matrix<Float> gammas (features_per_video[vid_idx].nColumns(), 64);
+    for (size_t x_idx = 0; x_idx < features_per_video[vid_idx].nColumns(); x_idx++) {
+      for (size_t k = 0; k < 64; k++) {
+        gammas.at(x_idx,k) = (weights.at(k) * u_s.at(x_idx,k)) / u_s_sum.at(x_idx);
+      }
+    }
+
+
+
+    //loop through all of the k in gaussan and get the G_a, G_u and G_sigma
+    Math::Vector<Float> fisher_vector((2*64+1)*64);
+    for (size_t k = 0; k < 64; k++) {
+
+      //normalization factor
+      float normalization=(1/std::sqrt(weights.at(k))) ;
+
+
+      //sum on the right hand side of G_a
+      float sum_g_a=0;
+      for (size_t x_idx = 0; x_idx < features_per_video[vid_idx].nColumns(); x_idx++) {
+        sum_g_a+= gammas.at(x_idx,k)- weights.at(k);
+      }
+      float G_a=normalization   * sum_g_a;
+
+
+      //G_u
+      Math::Vector<Float> G_u(64); G_u.setToZero();
+      for (size_t x_idx = 0; x_idx < features_per_video[vid_idx].nColumns(); x_idx++) {
+        Math::Vector<Float> x(64);
+        features_per_video[vid_idx].getColumn(x_idx, x);
+
+        Math::Vector<Float> mean(means.nRows());
+        means.getColumn(k, mean);
+
+        Math::Vector<Float> sigma(sigmas.nRows());
+    		sigmas.getColumn(k, sigma);
+        Math::Vector<Float> sigmaInv(64);
+        calculateInverse(sigma, sigmaInv);
+
+
+        x.add(mean, -1.0f);
+        x.elementwiseMultiplication(sigmaInv); //TODO I am not sure what this sigma exactly means
+
+        for (size_t idx = 0; idx < x.nRows(); idx++) {
+          x.at(idx)=x.at(idx)*gammas.at(x_idx,k);
+        }
+        // x.elementwiseMultiplication(gammas.at(x_idx,k));
+
+
+        G_u.add(x);
+      }
+      for (size_t idx = 0; idx < G_u.nRows(); idx++) {
+        G_u.at(idx)=G_u.at(idx)*normalization;
+      }
+      // G_u.elementwiseMultiplication(normalization);
+
+
+
+
+      //G_sigma
+      Math::Vector<Float> G_s(64); G_s.setToZero();
+      for (size_t x_idx = 0; x_idx < features_per_video[vid_idx].nColumns(); x_idx++) {
+        Math::Vector<Float> x(64);
+        features_per_video[vid_idx].getColumn(x_idx, x);
+
+        Math::Vector<Float> mean(means.nRows());
+        means.getColumn(k, mean);
+
+        Math::Vector<Float> sigma(sigmas.nRows());
+    		sigmas.getColumn(k, sigma);
+        sigma.elementwiseMultiplication(sigma);
+
+
+        x.add(mean, -1.0f);
+        x.elementwiseMultiplication(x);
+        x.elementwiseDivision(sigma); //TODO I am not sure what this sigma exactly means
+        x.addConstantElementwise(-1);
+
+        for (size_t idx = 0; idx < x.nRows(); idx++) {
+          x.at(idx)=x.at(idx)*gammas.at(x_idx,k)* (1/std::sqrt(2));
+        }
+        // x.elementwiseMultiplication(gammas.at(x_idx,k)* (1/std::sqrt(2)) );
+
+
+        G_s.add(x);
+      }
+      for (size_t idx = 0; idx < G_s.nRows(); idx++) {
+        G_s.at(idx)=G_s.at(idx)*normalization;
+      }
+      // G_s.elementwiseMultiplication(normalization);
+
+
+      //copy them into the respective place in the fisher vector
+      fisher_vector.at(k*(2*64+1))=G_a;
+      for (size_t i = 0; i < 64; i++) {
+        fisher_vector.at(k*(2*64+1) + i + 1)=G_u.at(i);
+        fisher_vector.at(k*(2*64+1) + i + k +1 )=G_s.at(i);
+      }
+
+    }
+
+
+    //copy the fisher vector for this video into the big fisher vectors matrix, where each column is the fisher vector for a certain video
+    fisher_vectors.setColumn(vid_idx,fisher_vector);
+
+
+
+
+  }
+
+
+
+  // fisher_vectors
+  //
+  // Math::Vector<Float> feature(trainingData.nRows());
+  // trainingData.getColumn(j, feature);
+
+}
+
+
+
+Float Dense::calculateDeterminenet(const Math::Vector<Float>& sigma) {
+	Float result = 1.0f;
+	for (u32 i=0; i<sigma.nRows(); i++) {
+		result *= sigma.at(i);
+	}
+	return result;
+}
+
+void Dense::calculateInverse(const Math::Vector<Float>& diagonalMat, Math::Vector<Float>& result) {
+	for (u32 i=0; i<diagonalMat.nRows(); i++) {
+		result.at(i) = 1.0f / diagonalMat.at(i);
+	}
+}
+
+
+
+float Dense::u(Math::Vector<Float>& x, const Math::Matrix<Float>& means, const Math::Matrix<Float>& sigmas, int k  ){
+
+  Math::Vector<Float> sigma(sigmas.nRows());
+  sigmas.getColumn(k, sigma);
+  Math::Vector<Float> mean(means.nRows());
+  means.getColumn(k, mean);
+  Math::Vector<Float> sigmaInv(sigmas.nRows());
+  calculateInverse(sigma, sigmaInv);
+
+
+
+  x.add(mean, -1.0f);
+
+  Math::Vector<Float> temp(x.nRows());
+  temp.copy(x);
+
+  x.elementwiseMultiplication(sigmaInv);
+  float result  =  (1.0f/(pow((2 * M_PI), 64 / 2.0f) * pow(abs(calculateDeterminenet(sigma)), 0.5))) * exp(x.dot(temp) * (-1.0f/2.0f));
+
+  return result;
+
+}
+
+
+void Dense::task_1_2_extract_trajectories(std::string descriptor_file_path){
+
+  Core::AsciiStream in(videoList_, std::ios::in);
+  std::string filename;
+
+  std::ofstream desc_file;
+  desc_file.open (descriptor_file_path);
+
+  int nr_vectors=0;
+  int vector_dimensions=0;
+  int nr_videos=0;
+
+
+  while (in.getline(filename)) {
+    std::cout << "video  " << filename<< '\n';
+
+      Video video;
+      Video flow, flowAngle, flowMag;
+      Video Lx,Ly,Lt;
+      std::vector<Track> tracks;
+      readVideo(filename, video);
+      // showVideo(video);
+
+      //compute_optical_flow
+      opticalFlow(video, flow, flowAngle, flowMag);
+      extractTrajectories(video, flow, tracks);
+      filterTracks(tracks);
+
+      // std::string trackFile="./tracks.txt";
+      // writeTracksToFile(trackFile,tracks);
+
+      //derivatives
+      derivatives(video,Lx,Ly,Lt);
+      computeDescriptors(video,tracks, Lx, Ly, flow, flowAngle, flowMag);
+
+
+      //write to file
+      int descriptor_written=write_descriptors_to_file(tracks, desc_file);
+      desc_file << "#"<< std::endl;
+
+      nr_vectors+=descriptor_written;
+      vector_dimensions=426;  //TODO remove hardcode
+      nr_videos++;
+
+
+      video.clear();
+      flow.clear();
+      flowAngle.clear();
+      flowMag.clear();
+
+      Lx.clear();
+      Ly.clear();
+      Lt.clear();
+      tracks.clear();
+
+      std::cout << "finished" << '\n';
+  }
+
+  //Add header to file
+  desc_file.seekp(0); //Move at start of file
+  desc_file << nr_vectors << " " << vector_dimensions << " " << nr_videos << std::endl;
+  desc_file.close();
+
+}
+
+
+void Dense::task_3_pca(std::string descriptor_file_path, std::string desc_compressed_file_path){
+  //pca--------------------------------------------------
+  //Read the features back again and do pca on them
+  std::string nr_features_per_video_file_path = "./new_features_per_video.txt";
+  cv::Mat features, feat_compressed;
+  std::vector<int> nr_features_per_video;
+  read_features_from_file_Mat(descriptor_file_path,features,nr_features_per_video);
+  // write_nr_features_per_video_to_file(nr_features_per_video_file_path, nr_features_per_video);
+
+  compressPCA(features, 64, cv::Mat(), feat_compressed);
+  std::cout << "finished compressing" << '\n';
+  std::cout << "feat compressed has size " << feat_compressed.rows << " " << feat_compressed.cols << '\n';
+
+  write_compressed_features_to_file(desc_compressed_file_path, feat_compressed, nr_features_per_video);
+
+}
+
+void Dense::task_3_gmm(std::string desc_compressed_file_path){
+
+  //Gmm-----------------------------------------
+  Math::Matrix<Float> features;
+  features.read(desc_compressed_file_path,true);
+  // read_features_from_file_math(desc_compressed_file_path,features);
+  for (size_t i = 0; i < features.nRows(); i++) {
+    for (size_t j = 0; j < features.nColumns(); j++) {
+      if (std::isnan( features.at(i,j))  || std::isinf( features.at(i,j))  ){
+        std::cout << "error, found a nan in the features" << '\n';
+        exit(1);
+      }
+    }
+  }
+  std::cout << "compressed features has size" << features.nRows() << " " << features.nColumns()  << '\n';
+  Gmm gmm;
+  gmm.train(features);
+  gmm.save();
+
+}
+
+void Dense::task_3_fisher(std::string desc_compressed_file_path){
+
+  Gmm gmm;
+  gmm.load();
+  std::cout << "finished loading gmm" << '\n';
+
+  std::vector <Math::Matrix<Float> > features_per_video;
+  Math::Matrix<Float> fisher_vectors;
+  read_features_per_video_from_file_math(desc_compressed_file_path, features_per_video, 227);
+
+  computeFisherVectors(fisher_vectors, features_per_video, gmm.mean(), gmm.weights(), gmm.sigma());
+
+}
+
+
+
 
 
 void Dense::run() {
     if (videoList_.empty())
         Core::Error::msg("dense.video-list must not be empty.") << Core::Error::abort;
+
+    // std::string descriptor_file_path = "./desc.txt";
+    // std::string desc_compressed_file_path = "./desc_comp.txt";
+
+    std::string descriptor_file_path = "./desc_test.txt";
+    std::string desc_compressed_file_path = "./desc_comp_test.txt";
+
+    task_1_2_extract_trajectories(descriptor_file_path);
+    task_3_pca(descriptor_file_path, desc_compressed_file_path);
+    task_3_gmm(desc_compressed_file_path);
+    task_3_fisher(desc_compressed_file_path);
 
     // Core::AsciiStream in(videoList_, std::ios::in);
     // std::string filename;
@@ -654,8 +1267,89 @@ void Dense::run() {
     // desc_file.close();
 
 
-    //Read the features back again and do pca on them
-    std::string descriptor_file_path = "./desc.txt";
+    // //pca--------------------------------------------------
+    // //Read the features back again and do pca on them
+    // std::string descriptor_file_path = "./desc.txt";
+    // std::string desc_compressed_file_path = "./desc_comp.txt";
+    // std::string nr_features_per_video_file_path = "./new_features_per_video.txt";
+    // cv::Mat features, feat_compressed;
+    // std::vector<int> nr_features_per_video;
+    // read_features_from_file_Mat(descriptor_file_path,features,nr_features_per_video);
+    // write_nr_features_per_video_to_file(nr_features_per_video_file_path, nr_features_per_video);
+    //
+    // compressPCA(features, 64, cv::Mat(), feat_compressed);
+    // std::cout << "finished compressing" << '\n';
+    // std::cout << "feat compressed has size " << feat_compressed.rows << " " << feat_compressed.cols << '\n';
+    //
+    // write_compressed_features_to_file(desc_compressed_file_path, feat_compressed, nr_features_per_video);
+
+
+
+    // //Gmm-----------------------------------------
+    // Math::Matrix<Float> features;
+    // std::string desc_compressed_file_path = "./desc_comp.txt";
+    // features.read(desc_compressed_file_path,true);
+    // // read_features_from_file_math(desc_compressed_file_path,features);
+    // for (size_t i = 0; i < features.nRows(); i++) {
+    //   for (size_t j = 0; j < features.nColumns(); j++) {
+    //     if (std::isnan( features.at(i,j))  || std::isinf( features.at(i,j))  ){
+    //       std::cout << "error, found a nan in the features" << '\n';
+    //       exit(1);
+    //     }
+    //   }
+    // }
+    // std::cout << "compressed features has size" << features.nRows() << " " << features.nColumns()  << '\n';
+    // Gmm gmm;
+    // gmm.train(features);
+    // gmm.save();
+
+
+
+
+    // //gmm opencv
+    // cv::Mat features;
+    // std::string desc_compressed_file_path = "./desc_comp.txt";
+    // std::vector<int> nr_features_per_video;
+    // read_features_from_file_Mat(desc_compressed_file_path, features, nr_features_per_video);
+    // transpose(features,features);
+    // std::cout << "finished reading the features of dimensions "<< features.rows << " " << features.cols << '\n';
+    // cv::EM em(64, cv::EM::COV_MAT_DIAGONAL);
+    // em.train(features);
+    //
+    // cv::Mat weights, means, covs;
+    // weights = em.get<cv::Mat>("weights");
+    // means = em.get<cv::Mat>("means");
+    // // covs  = em.get<cv::Mat>("covs");
+    //
+    // for (size_t i = 0; i < 64; i++) {
+    //   std::cout << "mean is " << means.at<float>(i,0) << '\n';
+    // }
+
+
+
+
+
+    // //fisher-----------------------------------
+    // Gmm gmm;
+    // gmm.load();
+    //
+    // //have to manually allocate some new math matrices and copy into them because of how gmm returns its internal matrices
+    // Math::Matrix<Float> means (gmm.mean().nRows(), gmm.mean().nColumns());
+    // Math::Vector<Float> weights(gmm.weights().nRows());
+    // Math::Matrix<Float> sigmas(gmm.sigma().nRows(), gmm.sigma().nColumns());
+    //
+    // means.copy(gmm.mean());
+    // weights.copy(gmm.weights());
+    // sigmas.copy(gmm.sigma());
+    // std::cout << "finished loading gmm" << '\n';
+    //
+    // std::vector <Math::Matrix<Float> > features_per_video;
+    // Math::Matrix<Float> fisher_vectors;
+    // std::string desc_compressed_file_path = "./desc_comp.txt";
+    // read_features_per_video_from_file_math(desc_compressed_file_path, features_per_video, 227);
+    //
+    // // computeFisherVectors(fisher_vectors, features_per_video, means, weights, sigmas);
+    // computeFisherVectors(fisher_vectors, features_per_video, gmm.mean(), gmm.weights(), gmm.sigma());
 
 
 }

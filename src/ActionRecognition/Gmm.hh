@@ -58,6 +58,8 @@ private:
 
 	void getSumofLambdasForEachGaussian(Math::Vector<Float>& result);
 	void maximizationStep(const Math::Matrix<Float>& trainingData);
+
+	void calculateInverse(const Math::Vector<Float>& diagonalMat, Math::Vector<Float>& result);
 public:
 	Gmm();
 	virtual ~Gmm() {}
