@@ -27,7 +27,6 @@ void Dense::showVideo(const Video& vid) {
 cv::Mat Dense::mat2gray(const cv::Mat& src){
     cv::Mat dst;
     cv::normalize(src, dst, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
-
     return dst;
 }
 
@@ -61,6 +60,7 @@ void Dense::opticalFlow(const Video& video, Video& flow, Video& flowAngle, Video
     cv::Mat tmpFlow;
 		cv::Mat tmpXY[2];
 
+    //we need to denormalize the images before calculatng the optical flow otherwise the output of it is wrong and scaled
     cv::normalize(video[t], video[t], 0.0f, 255.0f, cv::NORM_MINMAX, CV_32FC1);
     cv::normalize(video[t+1], video[t+1], 0.0f, 255.0f, cv::NORM_MINMAX, CV_32FC1);
 		// cv::calcOpticalFlowFarneback(video.at(t), video.at(t+1), tmpFlow, 0.702, 5, 10, 2, 7, 1.5, cv::OPTFLOW_FARNEBACK_GAUSSIAN );
@@ -84,26 +84,12 @@ void Dense::opticalFlow(const Video& video, Video& flow, Video& flowAngle, Video
 	  cv::medianBlur(flowChannels[1], flowChannels[1], 5);
     cv::merge(flowChannels, 2, tmpFlow);
 
-
-
     flow.push_back(tmpFlow);
-
-
-
-
-    //find min and maxs
-    // double min, max;
-    // cv::minMaxLoc(tmpFlow, &min, &max);
-    // std::cout << "flow at " << t  << "minmax" << min << " " << max << '\n';
-    // cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );
-    // // cv::imshow("Display window", mat2gray(minEigenvalMat));
-    // cv::imshow("Display window", mat2gray(tmpFlow));
-    // cv::waitKey(0);
-
 
 	}
 }
 
+//create Track objects from a vector of points corresponding to detections in the image
 void Dense::makeTracks(std::vector<Track>& tracks, std::vector<cv::Point>&  points, int start_time){
   for (size_t i = 0; i < points.size(); i++) {
     tracks.push_back( Track( points[i], start_time )   );
@@ -111,8 +97,6 @@ void Dense::makeTracks(std::vector<Track>& tracks, std::vector<cv::Point>&  poin
 }
 
 void Dense::track(std::vector<Track>& tracks, Video& flow){
-
-  // std::cout << "tracking" << '\n';
 
   for (size_t i = 0; i < tracks.size(); i++) {
     if (tracks[i].getLength()<15){
@@ -122,17 +106,10 @@ void Dense::track(std::vector<Track>& tracks, Video& flow){
       int y=tracks[i].getLastPoint().y;
       int t=tracks[i].getLastTime();
 
-      // std::cout << " prev point is " << i << " " <<x << " " << y << '\n';
-      // std::cout << "flow has size " << flow.size() << '\n';
-      // std::cout << " accesing at time " << t << '\n';
-
-			// new_point.x = tracks[i].getLastPoint().x + flow[t].ptr<float>(y)[2*x];
-      // new_point.y = tracks[i].getLastPoint().y + flow[t].ptr<float>(y)[2*x+1];
       new_point.x = tracks[i].getLastPoint().x + flow[t].at<cv::Point2f>(y,x).x;
       new_point.y = tracks[i].getLastPoint().y + flow[t].at<cv::Point2f>(y,x).y;
-      // std::cout << "flow" << flow[t].at<cv::Point2f>(y,x).x << " " << flow[t].at<cv::Point2f>(y,x).y << '\n';
 
-      //The tracks sometime get ut of the video for some reason
+      //The tracks sometimes get out of the video for some reason
       if (new_point.x<0 || new_point.x>flow[0].cols){
         continue;
       }
@@ -142,24 +119,13 @@ void Dense::track(std::vector<Track>& tracks, Video& flow){
 
       tracks[i].addPoint(new_point);
 
-      // std::cout << " new point is " << i << " " << new_point.x << " " << new_point.y << '\n';
-
     }
   }
-
-
-  // for (size_t i = 0; i < flow[0].rows; i++) {
-  //   for (size_t j = 0; j < flow[0].cols; j++) {
-  //     std::cout << "flow" << flow[2].at<cv::Point2f>(i,j).x << " " << flow[2].at<cv::Point2f>(i,j).y << '\n';
-  //   }
-  // }
 
 }
 
 void Dense::extractTrajectories(Video& video, Video& flow, std::vector<Track> & tracks){
 
-
-  // std::vector<Track> tracks;
   tracks.clear();
 
 
@@ -178,26 +144,10 @@ void Dense::extractTrajectories(Video& video, Video& flow, std::vector<Track> & 
       makeTracks(tracks,points,i);
     }
 
-
-
-
     track (tracks, flow);
 
 
-
-
-
-
   }
-
-  //extract densly in th first frame
-  //for each frame
-    //if (some criteria){
-    // ddensly sample
-    //}
-    //track the points
-
-
 
 }
 
@@ -221,9 +171,7 @@ void Dense::denseSample(cv::Mat frame, std::vector<cv::Point>& points,  int step
   }
 
 
-
-
-  // //droaw the points on the frame
+  // //draw the points on the frame
   // for (size_t i = 0; i < points.size(); i++) {
   //    cv::circle(frame, points[i], 3, cv::Scalar(0,0,255));
   // }
@@ -273,6 +221,8 @@ void Dense::filterTracks(std::vector<Track>& tracks){
 
 }
 
+
+//write tracks to file in a format representable by gnuploy
 void Dense::writeTracksToFile(std::string trackFile, std::vector<Track> tracks){
 
   std::ofstream myfile;
@@ -348,7 +298,6 @@ void Dense::compute_mbh(Video flow, Video& mbh_x_mag, Video& mbh_x_orientation, 
   }
 
 
-
 }
 
 void Dense::computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx, Video Ly, Video flow, Video flowAngle, Video flowMag ){
@@ -370,18 +319,12 @@ void Dense::computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx
   int cell_size_y=std::ceil(vol_y_size/(float)cell_per_vol_y);
   int cell_size_t=std::ceil(vol_t_size/(float)cell_per_vol_t);
 
-  // std::cout << "cell is " << cell_size_x << " " << cell_size_y << " " << cell_size_t << '\n';
-
 
   //compute gradient orientation and magnitude
   Video grad_mags, grad_orientations;
   Video mbh_x_mags, mbh_x_orientations, mbh_y_mags, mbh_y_orientations;
   compute_grad_orientations_magnitudes(Lx,Ly,grad_mags,grad_orientations);
   compute_mbh(flow,mbh_x_mags,mbh_x_orientations, mbh_y_mags, mbh_y_orientations);
-
-
-
-
 
 
 
@@ -426,7 +369,6 @@ void Dense::computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx
           int cell_idx_y= (y- (tracks[i].getPoint(t).y - vol_y_size/2 ) )/cell_size_y;
           int cell_idx_t= t/cell_size_t;
           // std::cout << "cell indexing i" << cell_idx_x << " " << cell_idx_y << " " << cell_idx_t << '\n';
-
 
 
           //we need it because the idx in time needs to be the time of the point + the time when the track started
@@ -520,21 +462,8 @@ void Dense::computeDescriptors(Video& video,std::vector<Track>& tracks, Video Lx
 
     tracks[i].descriptor=descriptor;
 
-    // std::cout << "descriptor has size " << descriptor.size() << '\n';
-    // if(i==0){
-    //   std::cout << "descripor is" << descriptor.to_string() << '\n';
-    // }
-
-
 
   }
-
-  // grad_mags.clear();
-  // grad_orientations.clear();
-  // mbh_x_mags.clear();
-  // mbh_x_orientations.clear();
-  // mbh_y_mags.clear();
-  // mbh_y_orientations.clear();
 
 }
 
@@ -872,6 +801,7 @@ void Dense::write_compressed_features_to_file(std::string desc_compressed_file_p
 
 void Dense::computeFisherVectors(Math::Matrix<Float>& fisher_vectors, std::vector <Math::Matrix<Float> >&  features_per_video, const Math::Matrix<Float>& means, const Math::Vector<Float>& weights, const Math::Matrix<Float>& sigmas){
 
+  //fisher vectors will contain the vectors for all the videos as column vectors
   fisher_vectors.resize((2*64+1)*64, features_per_video.size() );
 
   //make a matrix computing the u response of each features in the ideo under each gaussian,  u_k(x_t)
@@ -1015,12 +945,6 @@ void Dense::computeFisherVectors(Math::Matrix<Float>& fisher_vectors, std::vecto
 
   }
 
-
-
-  // fisher_vectors
-  //
-  // Math::Vector<Float> feature(trainingData.nRows());
-  // trainingData.getColumn(j, feature);
 
 }
 
@@ -1202,154 +1126,7 @@ void Dense::run() {
     task_3_pca(descriptor_file_path, desc_compressed_file_path);
     task_3_gmm(desc_compressed_file_path);
     task_3_fisher(desc_compressed_file_path);
-
-    // Core::AsciiStream in(videoList_, std::ios::in);
-    // std::string filename;
-    //
-    // std::string descriptor_file_path = "./desc.txt";
-    // std::ofstream desc_file;
-    // desc_file.open (descriptor_file_path);
-    //
-    // int nr_vectors=0;
-    // int vector_dimensions=0;
-    // int nr_videos=0;
-    //
-    //
-    // while (in.getline(filename)) {
-    //   std::cout << "video  " << filename<< '\n';
-    //
-    //     Video video;
-    //     Video flow, flowAngle, flowMag;
-    //     Video Lx,Ly,Lt;
-    //     std::vector<Track> tracks;
-    //     readVideo(filename, video);
-    //     // showVideo(video);
-    //
-    //     //compute_optical_flow
-    //     opticalFlow(video, flow, flowAngle, flowMag);
-    //     extractTrajectories(video, flow, tracks);
-    //     filterTracks(tracks);
-    //
-    //     // std::string trackFile="./tracks.txt";
-    //     // writeTracksToFile(trackFile,tracks);
-    //
-    //     //derivatives
-    //     derivatives(video,Lx,Ly,Lt);
-    //     computeDescriptors(video,tracks, Lx, Ly, flow, flowAngle, flowMag);
-    //
-    //
-    //     //write to file
-    //     int descriptor_written=write_descriptors_to_file(tracks, desc_file);
-    //     desc_file << "#"<< std::endl;
-    //
-    //     nr_vectors+=descriptor_written;
-    //     vector_dimensions=426;  //TODO remove hardcode
-    //     nr_videos++;
-    //
-    //     // extractTexturedPoints(video);
-    //     // extractFeatures(filename);
-    //     video.clear();
-    //     flow.clear();
-    //     flowAngle.clear();
-    //     flowMag.clear();
-    //
-    //     Lx.clear();
-    //     Ly.clear();
-    //     Lt.clear();
-    //     tracks.clear();
-    //
-    //     std::cout << "finished" << '\n';
-    // }
-    //
-    // //Add header to file
-    // desc_file.seekp(0); //Move at start of file
-    // desc_file << nr_vectors << " " << vector_dimensions << " " << nr_videos << std::endl;
-    // desc_file.close();
-
-
-    // //pca--------------------------------------------------
-    // //Read the features back again and do pca on them
-    // std::string descriptor_file_path = "./desc.txt";
-    // std::string desc_compressed_file_path = "./desc_comp.txt";
-    // std::string nr_features_per_video_file_path = "./new_features_per_video.txt";
-    // cv::Mat features, feat_compressed;
-    // std::vector<int> nr_features_per_video;
-    // read_features_from_file_Mat(descriptor_file_path,features,nr_features_per_video);
-    // write_nr_features_per_video_to_file(nr_features_per_video_file_path, nr_features_per_video);
-    //
-    // compressPCA(features, 64, cv::Mat(), feat_compressed);
-    // std::cout << "finished compressing" << '\n';
-    // std::cout << "feat compressed has size " << feat_compressed.rows << " " << feat_compressed.cols << '\n';
-    //
-    // write_compressed_features_to_file(desc_compressed_file_path, feat_compressed, nr_features_per_video);
-
-
-
-    // //Gmm-----------------------------------------
-    // Math::Matrix<Float> features;
-    // std::string desc_compressed_file_path = "./desc_comp.txt";
-    // features.read(desc_compressed_file_path,true);
-    // // read_features_from_file_math(desc_compressed_file_path,features);
-    // for (size_t i = 0; i < features.nRows(); i++) {
-    //   for (size_t j = 0; j < features.nColumns(); j++) {
-    //     if (std::isnan( features.at(i,j))  || std::isinf( features.at(i,j))  ){
-    //       std::cout << "error, found a nan in the features" << '\n';
-    //       exit(1);
-    //     }
-    //   }
-    // }
-    // std::cout << "compressed features has size" << features.nRows() << " " << features.nColumns()  << '\n';
-    // Gmm gmm;
-    // gmm.train(features);
-    // gmm.save();
-
-
-
-
-    // //gmm opencv
-    // cv::Mat features;
-    // std::string desc_compressed_file_path = "./desc_comp.txt";
-    // std::vector<int> nr_features_per_video;
-    // read_features_from_file_Mat(desc_compressed_file_path, features, nr_features_per_video);
-    // transpose(features,features);
-    // std::cout << "finished reading the features of dimensions "<< features.rows << " " << features.cols << '\n';
-    // cv::EM em(64, cv::EM::COV_MAT_DIAGONAL);
-    // em.train(features);
-    //
-    // cv::Mat weights, means, covs;
-    // weights = em.get<cv::Mat>("weights");
-    // means = em.get<cv::Mat>("means");
-    // // covs  = em.get<cv::Mat>("covs");
-    //
-    // for (size_t i = 0; i < 64; i++) {
-    //   std::cout << "mean is " << means.at<float>(i,0) << '\n';
-    // }
-
-
-
-
-
-    // //fisher-----------------------------------
-    // Gmm gmm;
-    // gmm.load();
-    //
-    // //have to manually allocate some new math matrices and copy into them because of how gmm returns its internal matrices
-    // Math::Matrix<Float> means (gmm.mean().nRows(), gmm.mean().nColumns());
-    // Math::Vector<Float> weights(gmm.weights().nRows());
-    // Math::Matrix<Float> sigmas(gmm.sigma().nRows(), gmm.sigma().nColumns());
-    //
-    // means.copy(gmm.mean());
-    // weights.copy(gmm.weights());
-    // sigmas.copy(gmm.sigma());
-    // std::cout << "finished loading gmm" << '\n';
-    //
-    // std::vector <Math::Matrix<Float> > features_per_video;
-    // Math::Matrix<Float> fisher_vectors;
-    // std::string desc_compressed_file_path = "./desc_comp.txt";
-    // read_features_per_video_from_file_math(desc_compressed_file_path, features_per_video, 227);
-    //
-    // // computeFisherVectors(fisher_vectors, features_per_video, means, weights, sigmas);
-    // computeFisherVectors(fisher_vectors, features_per_video, gmm.mean(), gmm.weights(), gmm.sigma());
+    // task_4_svm(); // TODO
 
 
 }
